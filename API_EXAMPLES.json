@@ -1,0 +1,268 @@
+{
+  "authentication_endpoints": {
+    "register": {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/auth/register",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "name": "John Doe",
+          "email": "john@example.com",
+          "password": "password123",
+          "password_confirmation": "password123"
+        }
+      },
+      "response": {
+        "success": {
+          "status": 201,
+          "body": {
+            "success": true,
+            "message": "User registered successfully",
+            "data": {
+              "id": 1,
+              "name": "John Doe",
+              "email": "john@example.com"
+            }
+          }
+        },
+        "error": {
+          "status": 422,
+          "body": {
+            "success": false,
+            "message": "Validation failed",
+            "errors": {
+              "email": [
+                "The email has already been taken."
+              ],
+              "password": [
+                "The password field must be at least 6 characters."
+              ]
+            }
+          }
+        }
+      }
+    },
+    "login": {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/auth/login",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "email": "john@example.com",
+          "password": "password123"
+        }
+      },
+      "response": {
+        "success": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Login successful",
+            "data": {
+              "id": 1,
+              "name": "John Doe",
+              "email": "john@example.com",
+              "token": "1|abcdefghijklmnopqrstuvwxyz123456789"
+            }
+          }
+        },
+        "error": {
+          "status": 401,
+          "body": {
+            "success": false,
+            "message": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "get_user": {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/auth/user",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer 1|abcdefghijklmnopqrstuvwxyz123456789"
+        }
+      },
+      "response": {
+        "success": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "name": "John Doe",
+              "email": "john@example.com"
+            }
+          }
+        },
+        "error": {
+          "status": 401,
+          "body": {
+            "success": false,
+            "message": "Unauthorized"
+          }
+        }
+      }
+    },
+    "logout": {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/auth/logout",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer 1|abcdefghijklmnopqrstuvwxyz123456789"
+        }
+      },
+      "response": {
+        "success": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Logout successful"
+          }
+        }
+      }
+    }
+  },
+  "bill_endpoints": {
+    "create_bill": {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/bill",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": "Bearer 1|abcdefghijklmnopqrstuvwxyz123456789"
+        },
+        "body": {
+          "nic": "123456789",
+          "customer_name": "John Doe",
+          "amount": 5000,
+          "due_date": "2026-05-04"
+        }
+      }
+    },
+    "get_bill": {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/bill/123456789",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer 1|abcdefghijklmnopqrstuvwxyz123456789"
+        }
+      }
+    },
+    "update_bill": {
+      "method": "PUT",
+      "url": "http://127.0.0.1:8000/api/bill/123456789",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": "Bearer 1|abcdefghijklmnopqrstuvwxyz123456789"
+        },
+        "body": {
+          "customer_name": "Jane Doe",
+          "amount": 5500,
+          "due_date": "2026-05-10"
+        }
+      }
+    }
+  },
+  "flow_example": {
+    "step_1_register": {
+      "description": "User creates a new account",
+      "request": {
+        "method": "POST",
+        "url": "/api/auth/register",
+        "body": {
+          "name": "Jane Smith",
+          "email": "jane@example.com",
+          "password": "securepass123",
+          "password_confirmation": "securepass123"
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "success": true,
+          "message": "User registered successfully",
+          "data": {
+            "id": 2,
+            "name": "Jane Smith",
+            "email": "jane@example.com"
+          }
+        }
+      }
+    },
+    "step_2_login": {
+      "description": "User logs in with credentials",
+      "request": {
+        "method": "POST",
+        "url": "/api/auth/login",
+        "body": {
+          "email": "jane@example.com",
+          "password": "securepass123"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "message": "Login successful",
+          "data": {
+            "id": 2,
+            "name": "Jane Smith",
+            "email": "jane@example.com",
+            "token": "2|xyz1234567890abcdefghijklmnop"
+          }
+        }
+      }
+    },
+    "step_3_access_protected_route": {
+      "description": "User can now access protected routes with token",
+      "request": {
+        "method": "GET",
+        "url": "/api/auth/user",
+        "headers": {
+          "Authorization": "Bearer 2|xyz1234567890abcdefghijklmnop"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "data": {
+            "id": 2,
+            "name": "Jane Smith",
+            "email": "jane@example.com"
+          }
+        }
+      }
+    },
+    "step_4_logout": {
+      "description": "User logs out",
+      "request": {
+        "method": "POST",
+        "url": "/api/auth/logout",
+        "headers": {
+          "Authorization": "Bearer 2|xyz1234567890abcdefghijklmnop"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "message": "Logout successful"
+        }
+      }
+    }
+  }
+}
