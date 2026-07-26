@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillController;
 use App\Http\Controllers\Api\WaterRecordController;
 use App\Http\Controllers\Api\PaymentSlipController;
+use App\Http\Controllers\Api\MeterStatusController;
 
 // Auth routes (public)
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -33,4 +34,9 @@ Route::get('/payment-slips/{nic}', [PaymentSlipController::class, 'index']);
 
 // FCM Token storage endpoint
 Route::post('/users/fcm-token', [App\Http\Controllers\Api\FcmTokenController::class, 'updateToken']);
+
+// Meter status endpoints
+Route::post('/meter/status', [MeterStatusController::class, 'checkOrUpdateStatus']);
+Route::get('/meter/status/{nic}', [MeterStatusController::class, 'showStatus']);
+
 

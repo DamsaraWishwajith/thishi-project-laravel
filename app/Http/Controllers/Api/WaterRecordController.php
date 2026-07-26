@@ -152,14 +152,15 @@ class WaterRecordController extends Controller
     public function summary(Request $request, $nic)
     {
         try {
-            $userExists = User::where('nic', $nic)->exists();
-            if (!$userExists) {
+            $user = User::where('nic', $nic)->first();
+            if (!$user) {
                 return response()->json([
                     'success' => false,
                     'message' => 'User with this NIC does not exist'
                 ], 404);
             }
 
+            $userStatus = strtolower($user->status ?? 'connected');
             $year = $request->query('year', date('Y'));
 
             $records = WaterRecord::where('nic', $nic)
@@ -174,8 +175,11 @@ class WaterRecordController extends Controller
 
             // Initialize structure matching the legacy `bill` schema
             $summary = [
-                'id' => (int)$nic, // use user's nic as a surrogate bill ID
-                'nic' => (int)$nic,
+                'id'              => (int)$nic, // use user's nic as a surrogate bill ID
+                'nic'             => (int)$nic,
+                'status'          => $userStatus,
+                'is_connected'    => ($userStatus === 'connected'),
+                'is_disconnected' => ($userStatus === 'disconnected'),
             ];
 
             foreach ($months as $num => $name) {
@@ -282,13 +286,30 @@ class WaterRecordController extends Controller
                 : null;
             $lastMonthUnits = $lastMonthRecord ? $lastMonthRecord->points : null;
 
-            // Same month last year = July 2025 (current month 1 year ago)
-            $predictedMonthLastYear = $now->copy()->subYear();
-            $sameMonthLastYearRecord = WaterRecord::where('nic', $nic)
-                ->whereYear('date', $predictedMonthLastYear->year)
-                ->whereMonth('date', $predictedMonthLastYear->month)
+            // ── Multi-year same-month historical records (e.g. July 2025, July 2024, July 2023...) ──
+            $sameMonthRecords = WaterRecord::where('nic', $nic)
+                ->whereMonth('date', $now->month)
+                ->whereYear('date', '<', $now->year)
                 ->orderBy('date', 'desc')
-                ->first();
+                ->get();
+
+            $sameMonthHistoryList = [];
+            $sameMonthHistoryText = "";
+            foreach ($sameMonthRecords as $smRecord) {
+                $monthLabel = $smRecord->date->format('M Y');
+                $units = (float)$smRecord->points;
+                $sameMonthHistoryList[] = [
+                    'label' => $monthLabel,
+                    'units' => $units,
+                    'year'  => $smRecord->date->year,
+                ];
+                $sameMonthHistoryText .= "- {$monthLabel}: {$units} units\n";
+            }
+
+            $sameMonthAvg = $sameMonthRecords->isNotEmpty() ? $sameMonthRecords->avg('points') : null;
+
+            // Same month last year (for backwards compatibility)
+            $sameMonthLastYearRecord = $sameMonthRecords->first();
             $sameMonthLastYearLabel = $sameMonthLastYearRecord
                 ? $sameMonthLastYearRecord->date->format('M Y')
                 : null;
@@ -305,7 +326,7 @@ class WaterRecordController extends Controller
             }
 
             // ── Compute current month to predict ────────────────────────────
-            $targetMonthStr  = $now->format('F Y');   // July 2026
+            $targetMonthStr  = $now->format('F Y');   // e.g. July 2026
             $currentMonthStr = $now->format('F Y');
 
             // Current month partial usage so far (sum of all records this month)
@@ -314,12 +335,9 @@ class WaterRecordController extends Controller
                 ->whereMonth('date', $now->month)
                 ->sum('points');
 
-            $daysElapsed   = (int)$now->format('j');       // day of month so far (e.g. 3)
-            $daysInMonth   = (int)$now->daysInMonth;       // total days in July (31)
+            $daysElapsed   = (int)$now->format('j');       // day of month so far (e.g. 25)
+            $daysInMonth   = (int)$now->daysInMonth;       // total days in month (31)
             $daysRemaining = $daysInMonth - $daysElapsed;
-
-            // Same month last year (July 2025)
-            $sameMonthLastYearForCurrent = $now->copy()->subYear();
 
             // ── Build Gemini prompt ─────────────────────────────────────────
             $prompt  = "You are an expert AI model analyzing household water consumption.\n";
@@ -328,21 +346,26 @@ class WaterRecordController extends Controller
             $prompt .= "There are {$daysRemaining} days remaining in the month.\n\n";
             $prompt .= "KEY REFERENCE POINTS:\n";
             if ($lastMonthLabel && $lastMonthUnits !== null) {
-                $prompt .= "- {$lastMonthLabel} usage: {$lastMonthUnits} units\n";
+                $prompt .= "- Last Month ({$lastMonthLabel}) usage: {$lastMonthUnits} units\n";
             }
-            if ($sameMonthLastYearUnits !== null) {
-                $prompt .= "- Same month last year ({$sameMonthLastYearLabel}) actual usage: {$sameMonthLastYearUnits} units\n";
+            if (!empty($sameMonthHistoryText)) {
+                $prompt .= "\nHISTORICAL SAME-MONTH USAGE FOR " . strtoupper($now->format('F')) . " IN PREVIOUS YEARS:\n";
+                $prompt .= $sameMonthHistoryText;
+                if ($sameMonthAvg !== null) {
+                    $prompt .= "Historical average for " . $now->format('F') . ": " . round($sameMonthAvg, 1) . " units\n";
+                }
             }
-            $prompt .= "\nFull historical data (most recent first):\n{$historyText}\n";
+            $prompt .= "\nFULL HISTORICAL USAGE DATA (most recent first):\n{$historyText}\n";
             $prompt .= "The current water rate is 50.00 Rs per unit.\n\n";
-            $prompt .= "Based on the partial usage so far ({$currentMonthUsageSoFar} units in {$daysElapsed} days) and historical patterns,\n";
-            $prompt .= "predict the TOTAL usage for the entire month of {$targetMonthStr} ({$daysInMonth} days).\n";
+            $prompt .= "INSTRUCTIONS:\n";
+            $prompt .= "Analyze the partial usage so far ({$currentMonthUsageSoFar} units in {$daysElapsed} days), overall historical consumption trends, and ESPECIALLY the historical same-month consumption from previous years for " . $now->format('F') . " (e.g., seasonal variations).\n";
+            $prompt .= "Predict the TOTAL water usage (in units) and total bill for the entire month of {$targetMonthStr} ({$daysInMonth} days).\n";
             $prompt .= "Response format: You MUST return ONLY a raw JSON object — no markdown, no backticks.\n";
             $prompt .= "{\n";
             $prompt .= "  \"predicted_month\": \"{$targetMonthStr}\",\n";
             $prompt .= "  \"predicted_units\": 20,\n";
             $prompt .= "  \"predicted_bill\": 1000,\n";
-            $prompt .= "  \"explanation\": \"Brief friendly explanation referencing partial usage so far and historical trends.\"\n";
+            $prompt .= "  \"explanation\": \"Brief friendly explanation comparing partial usage so far with historical same-month trends from previous years.\"\n";
             $prompt .= "}\n";
 
             // ── Call Gemini API with Fallback ─────────────────────────────────────────────
@@ -393,18 +416,19 @@ class WaterRecordController extends Controller
                     $dailyAverage = $currentMonthUsageSoFar / $daysElapsed;
                     $projectedUnits = $currentMonthUsageSoFar + ($dailyAverage * $daysRemaining);
                     
-                    // Blend projection and historical average based on how far we are into the month
+                    // Blend projection, same month historical average, and overall historical average
                     $progressRatio = $daysElapsed / $daysInMonth;
-                    $predictedUnits = ($projectedUnits * $progressRatio) + ($historicalAvg * (1 - $progressRatio));
+                    $blendedHistorical = ($sameMonthAvg !== null) ? (($sameMonthAvg * 0.7) + ($historicalAvg * 0.3)) : $historicalAvg;
+                    $predictedUnits = ($projectedUnits * $progressRatio) + ($blendedHistorical * (1 - $progressRatio));
                 } else {
-                    $predictedUnits = $historicalAvg;
+                    $predictedUnits = ($sameMonthAvg !== null) ? $sameMonthAvg : $historicalAvg;
                 }
                 
                 // Round values
                 $predictedUnits = round($predictedUnits, 1);
                 $predictedBill = round($predictedUnits * 50.0, 2);
                 
-                $fallbackExplanation = "Your AI prediction is estimated based on your average consumption. So far, you have used {$currentMonthUsageSoFar} units in {$daysElapsed} days. Based on this rate and your historical average of " . round($historicalAvg, 1) . " units, we predict a total of {$predictedUnits} units for {$targetMonthStr}.";
+                $fallbackExplanation = "Your AI prediction is estimated based on your consumption history. So far, you have used {$currentMonthUsageSoFar} units in {$daysElapsed} days. Based on this rate and your historical average for {$now->format('F')} (" . round($sameMonthAvg ?? $historicalAvg, 1) . " units), we predict a total of {$predictedUnits} units for {$targetMonthStr}.";
 
                 $predictionData = [
                     'predicted_month' => $targetMonthStr,
@@ -422,6 +446,7 @@ class WaterRecordController extends Controller
                     'last_month_units'          => $lastMonthUnits,
                     'same_month_last_year'       => $sameMonthLastYearLabel,
                     'same_month_last_year_units' => $sameMonthLastYearUnits,
+                    'same_month_history'        => $sameMonthHistoryList,
                 ])
             ], 200);
 
