@@ -225,7 +225,8 @@ class WaterRecordController extends Controller
     }
 
     /**
-     * Generate prediction using Gemini API.
+     * Return water usage context data for the Flutter app to call Gemini directly.
+     * No Gemini API call is made here — Laravel only prepares and returns the data.
      */
     public function predict($nic)
     {
@@ -238,7 +239,6 @@ class WaterRecordController extends Controller
                 ], 404);
             }
 
-            // Get all water records ordered by date descending
             $records = WaterRecord::where('nic', $nic)
                 ->orderBy('date', 'desc')
                 ->get();
@@ -250,11 +250,9 @@ class WaterRecordController extends Controller
                 ], 400);
             }
 
-            // ── Key reference points ────────────────────────────────────────
             $now = \Carbon\Carbon::now();
 
-            // Most recent completed month before the current month
-            // Try the actual last calendar month first, otherwise use the most recent available record
+            // ── Last month reference ────────────────────────────────────────
             $lastMonthDate   = $now->copy()->subMonth();
             $lastMonthRecord = WaterRecord::where('nic', $nic)
                 ->whereYear('date', $lastMonthDate->year)
@@ -262,7 +260,6 @@ class WaterRecordController extends Controller
                 ->orderBy('date', 'desc')
                 ->first();
 
-            // If no record for last calendar month, find the most recent record before this month
             if (!$lastMonthRecord) {
                 $lastMonthRecord = WaterRecord::where('nic', $nic)
                     ->where(function($q) use ($now) {
@@ -276,7 +273,6 @@ class WaterRecordController extends Controller
                     ->first();
             }
 
-            // Build a smart label: "Last Month" only if it's actually last month, else show the real month
             $isActualLastMonth = $lastMonthRecord &&
                 $lastMonthRecord->date->year  === $lastMonthDate->year &&
                 $lastMonthRecord->date->month === $lastMonthDate->month;
@@ -286,7 +282,7 @@ class WaterRecordController extends Controller
                 : null;
             $lastMonthUnits = $lastMonthRecord ? $lastMonthRecord->points : null;
 
-            // ── Multi-year same-month historical records (e.g. July 2025, July 2024, July 2023...) ──
+            // ── Same-month history from previous years ──────────────────────
             $sameMonthRecords = WaterRecord::where('nic', $nic)
                 ->whereMonth('date', $now->month)
                 ->whereYear('date', '<', $now->year)
@@ -306,154 +302,59 @@ class WaterRecordController extends Controller
                 $sameMonthHistoryText .= "- {$monthLabel}: {$units} units\n";
             }
 
-            $sameMonthAvg = $sameMonthRecords->isNotEmpty() ? $sameMonthRecords->avg('points') : null;
-
-            // Same month last year (for backwards compatibility)
+            $sameMonthAvg            = $sameMonthRecords->isNotEmpty() ? round($sameMonthRecords->avg('points'), 2) : null;
             $sameMonthLastYearRecord = $sameMonthRecords->first();
-            $sameMonthLastYearLabel = $sameMonthLastYearRecord
-                ? $sameMonthLastYearRecord->date->format('M Y')
-                : null;
-            $sameMonthLastYearUnits = $sameMonthLastYearRecord
-                ? $sameMonthLastYearRecord->points
-                : null;
+            $sameMonthLastYearLabel  = $sameMonthLastYearRecord ? $sameMonthLastYearRecord->date->format('M Y') : null;
+            $sameMonthLastYearUnits  = $sameMonthLastYearRecord ? $sameMonthLastYearRecord->points : null;
 
-            // ── Build history text for prompt ───────────────────────────────
-            $historyText = "";
-            $limitedRecords = $records->take(24);
-            foreach ($limitedRecords as $record) {
-                $monthStr = $record->date->format('M Y');
-                $historyText .= "- Month: {$monthStr}, Usage: {$record->points} units\n";
-            }
-
-            // ── Compute current month to predict ────────────────────────────
-            $targetMonthStr  = $now->format('F Y');   // e.g. July 2026
-            $currentMonthStr = $now->format('F Y');
-
-            // Current month partial usage so far (sum of all records this month)
+            // ── Current month partial usage ─────────────────────────────────
             $currentMonthUsageSoFar = WaterRecord::where('nic', $nic)
                 ->whereYear('date',  $now->year)
                 ->whereMonth('date', $now->month)
                 ->sum('points');
 
-            $daysElapsed   = (int)$now->format('j');       // day of month so far (e.g. 25)
-            $daysInMonth   = (int)$now->daysInMonth;       // total days in month (31)
+            $daysElapsed   = (int)$now->format('j');
+            $daysInMonth   = (int)$now->daysInMonth;
             $daysRemaining = $daysInMonth - $daysElapsed;
 
-            // ── Build Gemini prompt ─────────────────────────────────────────
-            $prompt  = "You are an expert AI model analyzing household water consumption.\n";
-            $prompt .= "Today is {$now->format('d F Y')} (day {$daysElapsed} of {$daysInMonth}).\n";
-            $prompt .= "The user has used {$currentMonthUsageSoFar} units so far this month ({$currentMonthStr}).\n";
-            $prompt .= "There are {$daysRemaining} days remaining in the month.\n\n";
-            $prompt .= "KEY REFERENCE POINTS:\n";
-            if ($lastMonthLabel && $lastMonthUnits !== null) {
-                $prompt .= "- Last Month ({$lastMonthLabel}) usage: {$lastMonthUnits} units\n";
-            }
-            if (!empty($sameMonthHistoryText)) {
-                $prompt .= "\nHISTORICAL SAME-MONTH USAGE FOR " . strtoupper($now->format('F')) . " IN PREVIOUS YEARS:\n";
-                $prompt .= $sameMonthHistoryText;
-                if ($sameMonthAvg !== null) {
-                    $prompt .= "Historical average for " . $now->format('F') . ": " . round($sameMonthAvg, 1) . " units\n";
-                }
-            }
-            $prompt .= "\nFULL HISTORICAL USAGE DATA (most recent first):\n{$historyText}\n";
-            $prompt .= "The current water rate is 50.00 Rs per unit.\n\n";
-            $prompt .= "INSTRUCTIONS:\n";
-            $prompt .= "Analyze the partial usage so far ({$currentMonthUsageSoFar} units in {$daysElapsed} days), overall historical consumption trends, and ESPECIALLY the historical same-month consumption from previous years for " . $now->format('F') . " (e.g., seasonal variations).\n";
-            $prompt .= "Predict the TOTAL water usage (in units) and total bill for the entire month of {$targetMonthStr} ({$daysInMonth} days).\n";
-            $prompt .= "Response format: You MUST return ONLY a raw JSON object — no markdown, no backticks.\n";
-            $prompt .= "{\n";
-            $prompt .= "  \"predicted_month\": \"{$targetMonthStr}\",\n";
-            $prompt .= "  \"predicted_units\": 20,\n";
-            $prompt .= "  \"predicted_bill\": 1000,\n";
-            $prompt .= "  \"explanation\": \"Brief friendly explanation comparing partial usage so far with historical same-month trends from previous years.\"\n";
-            $prompt .= "}\n";
-
-            // ── Call Gemini API with Fallback ─────────────────────────────────────────────
-            $predictionData = null;
-            $apiKey = env('GEMINI_API_KEY');
-            $url    = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
-
-            try {
-                // Increase PHP execution time limit for long-running LLM calls
-                set_time_limit(120);
-
-                $response = \Illuminate\Support\Facades\Http::withoutVerifying()
-                    ->timeout(90)
-                    ->withHeaders(['Content-Type' => 'application/json'])
-                    ->post($url, [
-                        'contents' => [[
-                            'parts' => [['text' => $prompt]]
-                        ]]
-                    ]);
-
-                if ($response->successful()) {
-                    $result = $response->json();
-                    $text   = $result['candidates'][0]['content']['parts'][0]['text'] ?? '';
-
-                    // Strip markdown wrappers if present
-                    $text = trim($text);
-                    if (str_starts_with($text, '```')) {
-                        $text = preg_replace('/^```(?:json)?|```$/m', '', $text);
-                        $text = trim($text);
-                    }
-
-                    $predictionData = json_decode($text, true);
-                } else {
-                    \Illuminate\Support\Facades\Log::warning("Gemini API prediction request failed with status " . $response->status() . ": " . $response->body());
-                }
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to connect or fetch from Gemini API: " . $e->getMessage());
+            // ── Full history text (last 24 records) ─────────────────────────
+            $historyText = "";
+            foreach ($records->take(24) as $record) {
+                $historyText .= "- " . $record->date->format('M Y') . ": {$record->points} units\n";
             }
 
-            // If Gemini failed or didn't return valid data, run the smart fallback predictor
-            if (!$predictionData) {
-                \Illuminate\Support\Facades\Log::info("Running smart fallback water usage predictor for user NIC: {$nic}");
-                
-                $historicalAvg = $records->avg('points') ?: 20.0;
-                
-                // Project based on current month so far
-                if ($daysElapsed > 0 && $currentMonthUsageSoFar > 0) {
-                    $dailyAverage = $currentMonthUsageSoFar / $daysElapsed;
-                    $projectedUnits = $currentMonthUsageSoFar + ($dailyAverage * $daysRemaining);
-                    
-                    // Blend projection, same month historical average, and overall historical average
-                    $progressRatio = $daysElapsed / $daysInMonth;
-                    $blendedHistorical = ($sameMonthAvg !== null) ? (($sameMonthAvg * 0.7) + ($historicalAvg * 0.3)) : $historicalAvg;
-                    $predictedUnits = ($projectedUnits * $progressRatio) + ($blendedHistorical * (1 - $progressRatio));
-                } else {
-                    $predictedUnits = ($sameMonthAvg !== null) ? $sameMonthAvg : $historicalAvg;
-                }
-                
-                // Round values
-                $predictedUnits = round($predictedUnits, 1);
-                $predictedBill = round($predictedUnits * 50.0, 2);
-                
-                $fallbackExplanation = "Your AI prediction is estimated based on your consumption history. So far, you have used {$currentMonthUsageSoFar} units in {$daysElapsed} days. Based on this rate and your historical average for {$now->format('F')} (" . round($sameMonthAvg ?? $historicalAvg, 1) . " units), we predict a total of {$predictedUnits} units for {$targetMonthStr}.";
+            $historicalAvg  = round((float)$records->avg('points'), 2);
+            $targetMonthStr = $now->format('F Y');
 
-                $predictionData = [
-                    'predicted_month' => $targetMonthStr,
-                    'predicted_units' => $predictedUnits,
-                    'predicted_bill'  => $predictedBill,
-                    'explanation'     => $fallbackExplanation
-                ];
-            }
-
-            // ── Build final response ────────────────────────────────────────
+            // ── Return raw context data — Flutter calls Gemini directly ──────
             return response()->json([
                 'success' => true,
-                'data'    => array_merge($predictionData, [
-                    'last_month'                => $lastMonthLabel,
-                    'last_month_units'          => $lastMonthUnits,
-                    'same_month_last_year'       => $sameMonthLastYearLabel,
+                'data'    => [
+                    // Prompt context fields
+                    'target_month'             => $targetMonthStr,
+                    'today'                    => $now->format('d F Y'),
+                    'days_elapsed'             => $daysElapsed,
+                    'days_in_month'            => $daysInMonth,
+                    'days_remaining'           => $daysRemaining,
+                    'current_month_usage'      => (float)$currentMonthUsageSoFar,
+                    'historical_avg'           => $historicalAvg,
+                    'same_month_avg'           => $sameMonthAvg,
+                    'history_text'             => $historyText,
+                    'same_month_history_text'  => $sameMonthHistoryText,
+                    'same_month_name'          => $now->format('F'),
+                    // UI display reference fields
+                    'last_month'               => $lastMonthLabel,
+                    'last_month_units'         => $lastMonthUnits,
+                    'same_month_last_year'     => $sameMonthLastYearLabel,
                     'same_month_last_year_units' => $sameMonthLastYearUnits,
-                    'same_month_history'        => $sameMonthHistoryList,
-                ])
+                    'same_month_history'       => $sameMonthHistoryList,
+                ]
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Prediction failed',
+                'message' => 'Failed to fetch prediction context',
                 'error'   => $e->getMessage()
             ], 500);
         }
