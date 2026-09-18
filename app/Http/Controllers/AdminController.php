@@ -338,7 +338,8 @@ class AdminController extends Controller
         
         $dailyRecords = WaterRecord::where('nic', $nic)
             ->orderBy('date', 'desc')
-            ->get();
+            ->paginate(15)
+            ->withQueryString();
 
         return view('admin.water_records_list', compact('user', 'dailyRecords'));
     }

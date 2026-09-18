@@ -137,39 +137,62 @@
         border-color: rgba(220, 53, 69, 0.2);
     }
 
-    /* Pagination CSS */
-    .pagination-wrapper {
-        margin-top: 24px;
+    /* Pagination */
+    .pagination-bar {
         display: flex;
-        justify-content: center;
-    }
-
-    /* Target standard Laravel Tailwind pagination structure but make it compatible */
-    .pagination-wrapper nav {
-        display: flex;
+        justify-content: space-between;
         align-items: center;
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border-color);
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .pagination-info {
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    .pagination-controls {
+        display: flex;
         gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
     }
 
-    .pagination-wrapper nav a, .pagination-wrapper nav span {
+    .page-btn {
         padding: 8px 14px;
-        background-color: var(--bg-secondary);
-        border: 1px solid var(--border-color);
-        color: var(--text-main);
         border-radius: 8px;
-        text-decoration: none;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        cursor: pointer;
     }
 
-    .pagination-wrapper nav a:hover {
-        background-color: var(--accent-blue);
+    .page-btn-active {
+        background: var(--accent-blue);
+        color: #fff;
+    }
+
+    .page-btn-inactive {
+        background: rgba(255,255,255,0.07);
+        color: var(--text-main);
+        border: 1px solid var(--border-color);
+    }
+
+    .page-btn-inactive:hover {
+        background: var(--accent-blue);
+        color: #fff;
         border-color: var(--accent-blue);
     }
 
-    .pagination-wrapper nav .active {
-        background-color: var(--accent-blue);
-        border-color: var(--accent-blue);
+    .page-btn-disabled {
+        background: rgba(255,255,255,0.03);
+        color: var(--text-muted);
+        cursor: not-allowed;
+        border: 1px solid var(--border-color);
     }
 </style>
 @endsection
@@ -263,9 +286,37 @@
         </div>
 
         <!-- Pagination -->
-        <div class="pagination-wrapper">
-            {{ $records->links() }}
+        @if($records->hasPages())
+        <div class="pagination-bar">
+            <span class="pagination-info">
+                Showing {{ $records->firstItem() }} to {{ $records->lastItem() }} of {{ $records->total() }} results
+            </span>
+            <div class="pagination-controls">
+                {{-- Previous --}}
+                @if($records->onFirstPage())
+                    <span class="page-btn page-btn-disabled">« Previous</span>
+                @else
+                    <a href="{{ $records->previousPageUrl() }}" class="page-btn page-btn-inactive">« Previous</a>
+                @endif
+
+                {{-- Page Numbers --}}
+                @foreach($records->getUrlRange(1, $records->lastPage()) as $page => $url)
+                    @if($page == $records->currentPage())
+                        <span class="page-btn page-btn-active">{{ $page }}</span>
+                    @else
+                        <a href="{{ $url }}" class="page-btn page-btn-inactive">{{ $page }}</a>
+                    @endif
+                @endforeach
+
+                {{-- Next --}}
+                @if($records->hasMorePages())
+                    <a href="{{ $records->nextPageUrl() }}" class="page-btn page-btn-active">Next »</a>
+                @else
+                    <span class="page-btn page-btn-disabled">Next »</span>
+                @endif
+            </div>
         </div>
+        @endif
     </div>
 
 @endsection

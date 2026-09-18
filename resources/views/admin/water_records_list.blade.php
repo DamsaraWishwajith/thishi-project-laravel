@@ -99,7 +99,7 @@ Daily Logs - {{ $user->name }}
         <div class="card">
             <div class="card-title">
                 <span>Daily Readings History Log</span>
-                <span style="font-size: 13px; color: var(--text-muted);">{{ $dailyRecords->count() }} total entries</span>
+                <span style="font-size: 13px; color: var(--text-muted);">{{ $dailyRecords->total() }} total entries</span>
             </div>
 
             <div class="table-container">
@@ -147,6 +147,35 @@ Daily Logs - {{ $user->name }}
                     </table>
                 @endif
             </div>
+
+            @if($dailyRecords->hasPages())
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 12px;">
+                <span style="font-size: 13px; color: var(--text-muted);">
+                    Showing {{ $dailyRecords->firstItem() }} to {{ $dailyRecords->lastItem() }} of {{ $dailyRecords->total() }} results
+                </span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    @if($dailyRecords->onFirstPage())
+                        <span style="padding: 8px 16px; border-radius: 8px; background: rgba(255,255,255,0.04); color: var(--text-muted); font-size: 13px; cursor: not-allowed;">« Previous</span>
+                    @else
+                        <a href="{{ $dailyRecords->previousPageUrl() }}" style="padding: 8px 16px; border-radius: 8px; background: rgba(255,255,255,0.07); color: var(--text-main); font-size: 13px; text-decoration: none; transition: background 0.2s;">« Previous</a>
+                    @endif
+
+                    @foreach($dailyRecords->getUrlRange(1, $dailyRecords->lastPage()) as $page => $url)
+                        @if($page == $dailyRecords->currentPage())
+                            <span style="padding: 8px 14px; border-radius: 8px; background: var(--accent-blue); color: #fff; font-size: 13px; font-weight: 600;">{{ $page }}</span>
+                        @else
+                            <a href="{{ $url }}" style="padding: 8px 14px; border-radius: 8px; background: rgba(255,255,255,0.07); color: var(--text-main); font-size: 13px; text-decoration: none;">{{ $page }}</a>
+                        @endif
+                    @endforeach
+
+                    @if($dailyRecords->hasMorePages())
+                        <a href="{{ $dailyRecords->nextPageUrl() }}" style="padding: 8px 16px; border-radius: 8px; background: var(--accent-blue); color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; transition: background 0.2s;">Next »</a>
+                    @else
+                        <span style="padding: 8px 16px; border-radius: 8px; background: rgba(255,255,255,0.04); color: var(--text-muted); font-size: 13px; cursor: not-allowed;">Next »</span>
+                    @endif
+                </div>
+            </div>
+            @endif
 
             <div class="card-footer">
                 <a href="{{ route('admin.users.detail', $user->nic) }}" class="btn-back">
