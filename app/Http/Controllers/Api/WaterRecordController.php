@@ -191,10 +191,12 @@ class WaterRecordController extends Controller
 
             foreach ($months as $num => $name) {
                 $summary[$name . '_point'] = '0';
+                $summary[$name . '_liters'] = '0';
                 $summary[$name . '_bill'] = '0';
             }
 
             $totalPoints = 0.0;
+            $totalLiters = 0.0;
             $totalBill = 0.0;
 
             foreach ($records as $record) {
@@ -203,13 +205,16 @@ class WaterRecordController extends Controller
                 $monthName = $months[$monthNum];
 
                 $summary[$monthName . '_point'] = (string)round((float)$summary[$monthName . '_point'] + $record->points, 2);
+                $summary[$monthName . '_liters'] = (string)round((float)$summary[$monthName . '_liters'] + $record->liters, 2);
                 $summary[$monthName . '_bill'] = (string)round((float)$summary[$monthName . '_bill'] + $record->bill, 2);
 
                 $totalPoints += $record->points;
+                $totalLiters += $record->liters;
                 $totalBill += $record->bill;
             }
 
             $summary['total_points'] = (string)round($totalPoints, 2);
+            $summary['total_liters'] = (string)round($totalLiters, 2);
             $summary['total_bill'] = (string)round($totalBill, 2);
             
             // Set timestamps based on latest record, or now
