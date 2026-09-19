@@ -113,8 +113,8 @@ Daily Logs - {{ $user->name }}
                         <thead>
                             <tr>
                                 <th>Date</th>
-                                <th>Water Rate</th>
-                                <th>Liters Consumed</th>
+                                <th>Liters (L)</th>
+                                <th>Units</th>
                                 <th>Billing Cost</th>
                                 <th style="text-align: right;">Delete</th>
                             </tr>
@@ -125,9 +125,11 @@ Daily Logs - {{ $user->name }}
                                     <td style="font-weight: 600; color: var(--text-main);">
                                         {{ $record->date->format('Y-m-d') }}
                                     </td>
-                                    <td>Rs. {{ number_format($record->water_rate, 2) }} / L</td>
-                                    <td class="text-cyan" style="font-weight: 500;">
-                                        {{ number_format($record->points, 2) }} L
+                                    <td style="font-weight: 500; color: var(--accent-cyan);">
+                                        {{ number_format($record->liters, 2) }} L
+                                    </td>
+                                    <td class="text-cyan" style="font-weight: 600;">
+                                        {{ number_format($record->points, 2) }} Units
                                     </td>
                                     <td class="text-green" style="font-weight: 600;">
                                         Rs. {{ number_format($record->bill, 2) }}

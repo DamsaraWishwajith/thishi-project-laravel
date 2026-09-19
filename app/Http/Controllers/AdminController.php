@@ -68,7 +68,8 @@ class AdminController extends Controller
 
         // Calculate statistics
         $totalUsers = User::count();
-        $totalLiters = (float)WaterRecord::sum('points');
+        $totalRecords = WaterRecord::count();
+        $totalUnits = (float)WaterRecord::sum('points');
         $avgRate = (float)WaterRecord::avg('water_rate');
         $totalBilling = (float)WaterRecord::sum('bill');
 
@@ -85,7 +86,8 @@ class AdminController extends Controller
 
         return view('admin.dashboard', compact(
             'totalUsers', 
-            'totalLiters', 
+            'totalRecords',
+            'totalUnits', 
             'avgRate', 
             'totalBilling',
             'recentReadings',
@@ -388,16 +390,21 @@ class AdminController extends Controller
         $request->validate([
             'nic' => 'required|integer|exists:users,nic',
             'date' => 'required|date_format:Y-m-d',
-            'water_rate' => 'required|numeric|min:0',
+            'water_rate' => 'nullable|numeric|min:0',
             'points' => 'required|numeric|min:0',
+            'liters' => 'nullable|numeric|min:0',
             'bill' => 'nullable|numeric|min:0',
         ]);
 
         $nic = $request->nic;
         $date = $request->date;
-        $waterRate = (float)$request->water_rate;
-        $points = (float)$request->points;
-        $bill = $request->has('bill') && $request->bill !== null ? (float)$request->bill : ($points * $waterRate);
+        $waterRate = $request->filled('water_rate') && (float)$request->water_rate > 0 ? (float)$request->water_rate : 50.0;
+        $points = (float)$request->points; // Points is Units
+        $liters = $request->filled('liters') ? (float)$request->liters : round($points * 1000.0, 2);
+
+        $bill = ($request->has('bill') && $request->bill !== null && $request->bill !== '') 
+            ? (float)$request->bill 
+            : round($points * $waterRate, 2);
 
         WaterRecord::updateOrCreate(
             [
@@ -407,6 +414,7 @@ class AdminController extends Controller
             [
                 'water_rate' => $waterRate,
                 'points' => $points,
+                'liters' => $liters,
                 'bill' => $bill
             ]
         );

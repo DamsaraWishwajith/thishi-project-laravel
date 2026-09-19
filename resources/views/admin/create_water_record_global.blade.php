@@ -125,21 +125,23 @@
                     <input type="date" name="date" class="form-control" required value="{{ date('Y-m-d') }}">
                 </div>
 
+                <input type="hidden" name="water_rate" value="50.00">
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Water Rate (Rs.)</label>
-                        <input type="number" name="water_rate" step="0.01" min="0" class="form-control" placeholder="10.00" required value="10.00">
+                        <label class="form-label">Consumption (Units / Points)</label>
+                        <input type="number" id="units_input" name="points" step="0.01" min="0" class="form-control" placeholder="e.g. 1.50" required oninput="if(this.value!=='') document.getElementById('liters_input').value=(parseFloat(this.value)*1000).toFixed(2)">
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Usage Liters (Points)</label>
-                        <input type="number" name="points" step="0.01" min="0" class="form-control" placeholder="12.50" required>
+                        <label class="form-label">Consumption (Liters)</label>
+                        <input type="number" id="liters_input" name="liters" step="0.01" min="0" class="form-control" placeholder="e.g. 1500.00" oninput="if(this.value!=='') document.getElementById('units_input').value=(parseFloat(this.value)/1000).toFixed(2)">
                     </div>
                 </div>
 
                 <div class="form-group" style="margin-bottom: 24px;">
                     <label class="form-label">Override Bill Rs. (Optional)</label>
-                    <input type="number" name="bill" step="0.01" min="0" class="form-control" placeholder="Leave empty for auto-calc (Usage * Rate)">
+                    <input type="number" name="bill" step="0.01" min="0" class="form-control" placeholder="Leave empty for auto-calc (Units * Rate)">
                 </div>
 
                 <button type="submit" class="btn-submit-form">

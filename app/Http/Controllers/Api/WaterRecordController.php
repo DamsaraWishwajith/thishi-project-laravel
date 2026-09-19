@@ -19,8 +19,9 @@ class WaterRecordController extends Controller
         $validator = Validator::make($request->all(), [
             'nic' => 'required|integer|exists:users,nic',
             'date' => 'required|date_format:Y-m-d',
-            'water_rate' => 'required|numeric|min:0',
+            'water_rate' => 'nullable|numeric|min:0',
             'points' => 'required|numeric|min:0',
+            'liters' => 'nullable|numeric|min:0',
             'bill' => 'nullable|numeric|min:0',
         ]);
 
@@ -35,11 +36,16 @@ class WaterRecordController extends Controller
         try {
             $nic = $request->nic;
             $date = $request->date;
-            $waterRate = (float)$request->water_rate;
-            $points = (float)$request->points;
+            $waterRate = $request->filled('water_rate') && (float)$request->water_rate > 0 ? (float)$request->water_rate : 50.0;
+            $points = (float)$request->points; // Points is Units
             
-            // Calculate bill if not explicitly provided
-            $bill = $request->has('bill') ? (float)$request->bill : ($points * $waterRate);
+            // If liters is sent from ESP, use it; otherwise calculate from points (1 unit = 1000L)
+            $liters = $request->filled('liters') ? (float)$request->liters : round($points * 1000.0, 2);
+
+            // Calculate bill based on units: bill = points * water_rate
+            $bill = ($request->has('bill') && $request->bill !== null && $request->bill !== '') 
+                ? (float)$request->bill 
+                : round($points * $waterRate, 2);
 
             // Create or update the record for the specific user and date
             $record = WaterRecord::updateOrCreate(
@@ -50,6 +56,7 @@ class WaterRecordController extends Controller
                 [
                     'water_rate' => $waterRate,
                     'points' => $points,
+                    'liters' => $liters,
                     'bill' => $bill
                 ]
             );
@@ -195,15 +202,15 @@ class WaterRecordController extends Controller
                 $monthNum = (int)$record->date->format('n');
                 $monthName = $months[$monthNum];
 
-                $summary[$monthName . '_point'] = (string)((float)$summary[$monthName . '_point'] + $record->points);
-                $summary[$monthName . '_bill'] = (string)((float)$summary[$monthName . '_bill'] + $record->bill);
+                $summary[$monthName . '_point'] = (string)round((float)$summary[$monthName . '_point'] + $record->points, 2);
+                $summary[$monthName . '_bill'] = (string)round((float)$summary[$monthName . '_bill'] + $record->bill, 2);
 
                 $totalPoints += $record->points;
                 $totalBill += $record->bill;
             }
 
-            $summary['total_points'] = (string)$totalPoints;
-            $summary['total_bill'] = (string)$totalBill;
+            $summary['total_points'] = (string)round($totalPoints, 2);
+            $summary['total_bill'] = (string)round($totalBill, 2);
             
             // Set timestamps based on latest record, or now
             $latestRecord = $records->sortByDesc('updated_at')->first();

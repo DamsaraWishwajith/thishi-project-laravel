@@ -246,7 +246,7 @@
                         <tr>
                             <th>NIC</th>
                             <th>User Name</th>
-                            <th>Liters Consumed (L)</th>
+                            <th>Units Consumed</th>
                             <th>Total Bill (Rs.)</th>
                             <th>Payment Status</th>
                             <th style="text-align: right;">Action</th>
@@ -263,9 +263,9 @@
                                 
                                 <td>
                                     @if($cell['has_records'])
-                                        <span class="val-points">{{ number_format($cell['points'], 1) }} L</span>
+                                        <span class="val-points">{{ number_format($cell['points'], 1) }} Units</span>
                                     @else
-                                        <span style="color: var(--text-muted); opacity: 0.5;">0.0 L</span>
+                                        <span style="color: var(--text-muted); opacity: 0.5;">0.0 Units</span>
                                     @endif
                                 </td>
 

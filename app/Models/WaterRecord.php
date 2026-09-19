@@ -19,6 +19,7 @@ class WaterRecord extends Model
         'date',
         'water_rate',
         'points',
+        'liters',
         'bill',
         'paid',
     ];
@@ -32,9 +33,18 @@ class WaterRecord extends Model
         'date' => 'date',
         'water_rate' => 'float',
         'points' => 'float',
+        'liters' => 'float',
         'bill' => 'float',
         'paid' => 'boolean',
     ];
+
+    /**
+     * Get the liters value, falling back to points * 1000 if not explicitly stored.
+     */
+    public function getLitersAttribute($value)
+    {
+        return ($value !== null && (float)$value > 0) ? (float)$value : (float)($this->points * 1000.0);
+    }
 
     /**
      * Get the user that owns the water record.

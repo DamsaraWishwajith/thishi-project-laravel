@@ -178,18 +178,18 @@
                 <i class="fa-solid fa-droplet"></i>
             </div>
             <div class="stat-details">
-                <div class="stat-value">{{ number_format($totalLiters, 1) }} L</div>
-                <div class="stat-label">Total Liters</div>
+                <div class="stat-value">{{ number_format($totalUnits ?? 0, 1) }} Units</div>
+                <div class="stat-label">Total Units</div>
             </div>
         </div>
 
         <div class="stat-card">
             <div class="stat-icon rate">
-                <i class="fa-solid fa-tag"></i>
+                <i class="fa-solid fa-clipboard-list"></i>
             </div>
             <div class="stat-details">
-                <div class="stat-value">Rs. {{ number_format($avgRate, 2) }}</div>
-                <div class="stat-label">Avg Water Rate</div>
+                <div class="stat-value">{{ number_format($totalRecords ?? 0) }}</div>
+                <div class="stat-label">Total Readings</div>
             </div>
         </div>
 
@@ -224,7 +224,7 @@
                                 <span class="item-subtitle">NIC: {{ $reading->nic }} | {{ $reading->date->format('Y-m-d') }}</span>
                             </div>
                             <div class="item-val">
-                                <span class="val-primary text-cyan">{{ number_format($reading->points, 1) }} Liters</span>
+                                <span class="val-primary text-cyan">{{ number_format($reading->points, 1) }} Units</span>
                                 <span class="val-secondary text-green">Rs. {{ number_format($reading->bill, 2) }}</span>
                             </div>
                         </div>

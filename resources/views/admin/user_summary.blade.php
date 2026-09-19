@@ -115,7 +115,7 @@ Monthly Summary - {{ $user->name }}
                 <thead>
                     <tr>
                         <th>Month</th>
-                        <th>Water Liters</th>
+                        <th>Units Consumed</th>
                         <th>Billing Total</th>
                     </tr>
                 </thead>
@@ -123,7 +123,7 @@ Monthly Summary - {{ $user->name }}
                     @foreach($monthlyAggregates as $month => $vals)
                         <tr>
                             <td style="font-weight: 500;">{{ $month }}</td>
-                            <td>{{ number_format($vals['points'], 2) }} L</td>
+                            <td>{{ number_format($vals['points'], 2) }} Units</td>
                             <td class="text-green" style="font-weight: 600;">
                                 Rs. {{ number_format($vals['bill'], 2) }}
                             </td>
@@ -131,7 +131,7 @@ Monthly Summary - {{ $user->name }}
                     @endforeach
                     <tr class="total-row">
                         <td>Annual Total</td>
-                        <td>{{ number_format($totalPoints, 2) }} L</td>
+                        <td>{{ number_format($totalPoints, 2) }} Units</td>
                         <td>Rs. {{ number_format($totalBill, 2) }}</td>
                     </tr>
                 </tbody>

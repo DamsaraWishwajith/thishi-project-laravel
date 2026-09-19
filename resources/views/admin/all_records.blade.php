@@ -242,8 +242,8 @@
                         <tr>
                             <th>User (NIC)</th>
                             <th>Date</th>
-                            <th>Water Rate</th>
-                            <th>Consumption</th>
+                            <th>Liters (L)</th>
+                            <th>Units</th>
                             <th>Total Bill</th>
                             <th style="text-align: right;">Action</th>
                         </tr>
@@ -262,9 +262,11 @@
                                 <td style="font-weight: 500;">
                                     {{ $record->date->format('Y-m-d') }}
                                 </td>
-                                <td>Rs. {{ number_format($record->water_rate, 2) }} / L</td>
-                                <td class="text-cyan" style="font-weight: 500;">
-                                    {{ number_format($record->points, 2) }} L
+                                <td style="font-weight: 500; color: var(--accent-cyan);">
+                                    {{ number_format($record->liters, 2) }} L
+                                </td>
+                                <td class="text-cyan" style="font-weight: 600;">
+                                    {{ number_format($record->points, 2) }} Units
                                 </td>
                                 <td class="text-green" style="font-weight: 600;">
                                     Rs. {{ number_format($record->bill, 2) }}
